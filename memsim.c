@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 typedef struct {
   int empty; 
@@ -7,19 +8,26 @@ typedef struct {
   
   int pageNo;
   
-  int dirty;
-  int use
+  int modified;
+  
+  int use; // for LRU swapping, is incremented everytime the page isn't accessed
+          // set to 0 on access
 
 } page;
+		   
+enum repl 
+{ _random, //random name conflicts with random() function, so i added '_' :) 
+fifo, 
+lru, 
+clock };
 
-enum repl { random, fifo, lru, clock };
 int createMMU(int);
 int checkInMemory(int);
 int allocateFrame(int);
 page selectVictim(int, enum repl);
+
 const int pageoffset = 12; /* Page size is fixed to 4 KB */
 // 12 bits can represent 4KB (0-4095)
-
 
 int numFrames;
 
@@ -41,11 +49,11 @@ int createMMU(int frames) {
 		where in each frame we store
 
 		____________________
-	   |                   |
-	   |  Page Number      
-	   |  Dirty Bit
-	   |  Use Bit           		   
-	   |___________________|
+    |                   |
+    |  Page Number      
+    |  Dirty Bit
+    |  Use Bit           		   
+    |___________________|
 	   
 	   when a new line comes in 
 
@@ -55,6 +63,7 @@ int createMMU(int frames) {
 
 	               _____________________: second part as offset (which can be ignored for our simulation)
 
+    luckily the provided skeleton handles all this yucky binary stuff for us!
 	   
 	*/
 	#pragma endregion
@@ -64,10 +73,13 @@ int createMMU(int frames) {
 	page_table = malloc(frames * sizeof(page*)); /* page directory */
 	
 	for(int i = 0; i < frames; i++){
-		page_table == malloc(sizeof(page)); // NULL will denote an empty space
+		page_table[i] = malloc(sizeof(page)); // NULL will denote an empty space
+		page_table[i]->empty = 1; // all frames are initally empty
+    page_table[i]->modified = 0;
+    page_table[i]->use = 0;
 	}
 
-  return 0;
+  	return 0;
 }
 
 /* Checks for residency: returns frame no or -1 if not found */
@@ -76,9 +88,15 @@ int checkInMemory(int page_number) {
 
 	// iterates over each frame in page table, checking if page_number
 	for(int i = 0; i < numFrames; i++){
-		if(page_table[i]->pageNo = page_number && !page_table[i]->empty){
-			return i;
+
+		if(page_table[i]->pageNo == page_number && !page_table[i]->empty){
+      result = i; // reset time since used
+      page_table[i]->use = 0;
 		}
+    else{ 
+      page_table[i]->use += 1;
+    }
+    
 	}
 	return result;
 }
@@ -89,6 +107,12 @@ int allocateFrame(int page_number) {
 	for(int i = 0; i < numFrames; i++){
 		// frame i is empty, allocate there
 		if(page_table[i]->empty){
+
+			page_table[i]->pageNo = page_number;
+			page_table[i]->empty = 0;
+			page_table[i]->modified = 0;
+			page_table[i]->use = 0; 
+
 			return i;
 		}
 	}
@@ -99,13 +123,69 @@ int allocateFrame(int page_number) {
 /* Selects a victim for eviction/discard according to the replacement algorithm,
  * returns chosen frame_no  */
 page selectVictim(int page_number, enum repl mode) {
-  page victim;
+	page victim;
 
-  // to do
+	int evic_index = 0; // who are we removing?
 
-  victim.pageNo = 0;
-  victim.modified = 0;
-  return (victim);
+	switch(mode){
+
+		case fifo:
+
+			break;
+
+		case _random:
+
+			evic_index = rand() % numFrames;
+			break;
+  
+		case lru: {
+
+      // find the largest 'use' value while ensuring the frame we pick is not empty 
+
+      int max = page_table[0]->use;
+      while(page_table[evic_index]->empty){
+        evic_index += 1;
+        if(evic_index >= numFrames - 1){
+          break;
+        }
+      }
+      max = page_table[evic_index]->use;
+
+      for(int i = evic_index; i < numFrames; i++){
+
+        if(page_table[i]->use > max && !page_table[i]->empty){
+          evic_index = i;
+          max = page_table[i]->use;
+        }
+      }
+
+			break;
+    }
+
+		case clock:
+
+			break;
+		
+	}
+
+	victim = *page_table[evic_index];
+	page_table[evic_index]->empty = 1;
+  page_table[evic_index]->modified = 0;
+  page_table[evic_index]->use = 0;
+  
+	return (victim);
+}
+
+/* marks modified bit as 1, will write to disk */
+void modifyPage(int page_number){
+
+	for(int i = 0; i < numFrames; i++){
+
+		if(page_table[i]->pageNo == page_number && !page_table[i]->empty){
+			page_table[i]->modified = 1;
+			break;
+		}
+	}
 }
 
 main(int argc, char *argv[]) {
@@ -145,7 +225,7 @@ main(int argc, char *argv[]) {
     if (strcmp(argv[3], "lru\0") == 0)
       replace = lru;
     else if (strcmp(argv[3], "rand\0") == 0)
-      replace = random;
+      replace = _random;
     else if (strcmp(argv[3], "clock\0") == 0)
       replace = clock;
     else if (strcmp(argv[3], "fifo\0") == 0)
@@ -212,6 +292,7 @@ main(int argc, char *argv[]) {
       }
     } else if (rw == 'W') {
       // mark page in page table as written - modified
+	  modifyPage(page_number);
       if (debugmode) {
         printf("writting   %8d \n", page_number);
       }
