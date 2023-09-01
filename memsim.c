@@ -2,8 +2,14 @@
 #include <string.h>
 
 typedef struct {
+  int empty; 
+  // saves constant memory allocation, simply mark an existing page as empty to be overwritten 
+  
   int pageNo;
-  int modified;
+  
+  int dirty;
+  int use
+
 } page;
 
 enum repl { random, fifo, lru, clock };
@@ -14,23 +20,69 @@ page selectVictim(int, enum repl);
 const int pageoffset = 12; /* Page size is fixed to 4 KB */
 // 12 bits can represent 4KB (0-4095)
 
+
 int numFrames;
+
+page** page_table; // allocated by createMMU()
 
 /* Creates the page table structure to record memory allocation */
 int createMMU(int frames) {
-  /* we will be implimenting a linear page table */
-  page *page_dir = (page *)malloc(frames * sizeof(page*)); /* page directory */
+
+	#pragma region notes
+	/*
+
+		say 'frames' = 4, our page table could look like this
+		 ________
+		|_______|       
+		|_______|       	
+		|_______|       	
+		|_______|       
+
+		where in each frame we store
+
+		____________________
+	   |                   |
+	   |  Page Number      
+	   |  Dirty Bit
+	   |  Use Bit           		   
+	   |___________________|
+	   
+	   when a new line comes in 
+
+	   000001000011 11111111111101000101
+
+	   ____________: interpret first part as page
+
+	               _____________________: second part as offset (which can be ignored for our simulation)
+
+	   
+	*/
+	#pragma endregion
+	
+	/* we will be implimenting a linear page table */
+	
+	page_table = malloc(frames * sizeof(page*)); /* page directory */
+	
+	for(int i = 0; i < frames; i++){
+		page_table == malloc(sizeof(page)); // NULL will denote an empty space
+	}
 
   return 0;
 }
 
 /* Checks for residency: returns frame no or -1 if not found */
 int checkInMemory(int page_number) {
-  int result = -1;
+	int result = -1;
 
-  // to do
+	// iterates over each frame in page table, checking if page_number
+	for(int i = 0; i < numFrames; i++){
+		if(page_table[i]->pageNo = page_number && !page_table[i]->empty){
+			return i;
+		}
+	}
+	return result;
 
-  return result;
+ 	 return result;
 }
 
 /* allocate page to the next free frame and record where it put it */
