@@ -81,14 +81,19 @@ int checkInMemory(int page_number) {
 		}
 	}
 	return result;
-
- 	 return result;
 }
 
 /* allocate page to the next free frame and record where it put it */
 int allocateFrame(int page_number) {
-  // to do
-  return;
+
+	for(int i = 0; i < numFrames; i++){
+		// frame i is empty, allocate there
+		if(page_table[i]->empty){
+			return i;
+		}
+	}
+
+	return -1;
 }
 
 /* Selects a victim for eviction/discard according to the replacement algorithm,
