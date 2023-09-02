@@ -82,6 +82,17 @@ int createMMU(int frames) {
   	return 0;
 }
 
+void printMMU(){
+  for(int i = 0; i < numFrames; i++){
+
+    printf("_________________\n");
+    printf("| Page No : %d\n", page_table[i]->pageNo);
+    printf("| Modified: %d\n", page_table[i]->modified);
+    printf("| Use     : %d\n", page_table[i]->use);
+    printf("| Empty   : %d\n\n", page_table[i]->empty);
+  }
+}
+
 /* Checks for residency: returns frame no or -1 if not found */
 int checkInMemory(int page_number) {
 	int result = -1;
@@ -95,18 +106,18 @@ int checkInMemory(int page_number) {
 		}
     else{ 
       page_table[i]->use += 1;
-    }
-    
+    }   
 	}
+  
 	return result;
 }
 
 /* allocate page to the next free frame and record where it put it */
 int allocateFrame(int page_number) {
-
 	for(int i = 0; i < numFrames; i++){
 		// frame i is empty, allocate there
-		if(page_table[i]->empty){
+
+		if(page_table[i]->empty ){
 
 			page_table[i]->pageNo = page_number;
 			page_table[i]->empty = 0;
@@ -143,6 +154,7 @@ page selectVictim(int page_number, enum repl mode) {
       // find the largest 'use' value while ensuring the frame we pick is not empty 
 
       int max = page_table[0]->use;
+
       while(page_table[evic_index]->empty){
         evic_index += 1;
         if(evic_index >= numFrames - 1){
@@ -156,6 +168,7 @@ page selectVictim(int page_number, enum repl mode) {
         if(page_table[i]->use > max && !page_table[i]->empty){
           evic_index = i;
           max = page_table[i]->use;
+          printf("evict this\n");
         }
       }
 
@@ -187,6 +200,8 @@ void modifyPage(int page_number){
 		}
 	}
 }
+
+
 
 main(int argc, char *argv[]) {
   char *tracename;
@@ -270,6 +285,7 @@ main(int argc, char *argv[]) {
         frame_no = allocateFrame(page_number);
         allocated++;
       } else {
+
         Pvictim = selectVictim(page_number,
                                replace); /* returns page number of the victim */
         frame_no = checkInMemory(
@@ -281,9 +297,12 @@ main(int argc, char *argv[]) {
           if (debugmode) {
             printf("Disk write %8d \n", Pvictim.pageNo);
           }
-        } else if (debugmode) {
+        } 
+        else if (debugmode) {
           printf("Discard    %8d \n", Pvictim.pageNo);
         }
+        
+        allocated--; // to signify we have one less page
       }
     }
     if (rw == 'R') {
@@ -292,7 +311,7 @@ main(int argc, char *argv[]) {
       }
     } else if (rw == 'W') {
       // mark page in page table as written - modified
-	  modifyPage(page_number);
+	    modifyPage(page_number);
       if (debugmode) {
         printf("writting   %8d \n", page_number);
       }
