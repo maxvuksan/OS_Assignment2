@@ -183,6 +183,7 @@ page selectVictim(int page_number, enum repl mode) {
 		
 	}
 
+  /* mark as empty (evicted) in page table */
 	victim = *page_table[evic_index];
 	page_table[evic_index]->empty = 1;
   page_table[evic_index]->modified = 0;
@@ -290,11 +291,13 @@ main(int argc, char *argv[]) {
         allocated++;
       } else {
 
-        allocated--;
         Pvictim = selectVictim(page_number,
                                replace); /* returns page number of the victim */
-        frame_no = checkInMemory(
-            page_number); /* find out the frame the new page is in */
+
+        allocated--; // signify we have removed a page
+
+        frame_no = allocateFrame(
+            page_number); /* allocate our new frame */
 
         if (Pvictim.modified) /* need to know victim page and modified  */
         {
@@ -314,7 +317,7 @@ main(int argc, char *argv[]) {
         printf("reading    %8d \n", page_number);
       }
     } else if (rw == 'W') {
-      // mark page in page table as written - modified
+      // mark page in page table as modified
 	    modifyPage(page_number);
       if (debugmode) {
         printf("writting   %8d \n", page_number);
