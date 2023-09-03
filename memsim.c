@@ -8,10 +8,10 @@ typedef struct {
   
   int pageNo;
   
-  int modified;
+  int modified; // has the page been written? (if so when evicted we write to the disk)
   
-  int use; // for LRU swapping, is incremented everytime the page isn't accessed
-          // set to 0 on access
+  int LRU_use; // for LRU swapping, is incremented everytime the page isn't accessed
+           // set to 0 on access
 
 } page;
 		   
@@ -52,7 +52,7 @@ int createMMU(int frames) {
     |                   |
     |  Page Number      
     |  Dirty Bit
-    |  Use Bit           		   
+    |  LRU_use           		   
     |___________________|
 	   
 	   when a new line comes in 
@@ -76,7 +76,7 @@ int createMMU(int frames) {
 		page_table[i] = malloc(sizeof(page)); // NULL will denote an empty space
 		page_table[i]->empty = 1; // all frames are initally empty
     page_table[i]->modified = 0;
-    page_table[i]->use = 0;
+    page_table[i]->LRU_use= 0;
 	}
 
   	return 0;
@@ -88,7 +88,7 @@ void printMMU(){
     printf("_________________\n");
     printf("| Page No : %d\n", page_table[i]->pageNo);
     printf("| Modified: %d\n", page_table[i]->modified);
-    printf("| Use     : %d\n", page_table[i]->use);
+    printf("| LRU_use: %d\n", page_table[i]->LRU_use);
     printf("| Empty   : %d\n\n", page_table[i]->empty);
   }
 }
@@ -102,10 +102,10 @@ int checkInMemory(int page_number) {
 
 		if(page_table[i]->pageNo == page_number && !page_table[i]->empty){
       result = i; // reset time since used
-      page_table[i]->use = 0;
+      page_table[i]->LRU_use= 0;
 		}
     else{ 
-      page_table[i]->use += 1;
+      page_table[i]->LRU_use += 1;
     }   
 	}
   
@@ -114,7 +114,8 @@ int checkInMemory(int page_number) {
 
 /* allocate page to the next free frame and record where it put it */
 int allocateFrame(int page_number) {
-	for(int i = 0; i < numFrames; i++){
+	
+  for(int i = 0; i < numFrames; i++){
 		// frame i is empty, allocate there
 
 		if(page_table[i]->empty ){
@@ -122,7 +123,7 @@ int allocateFrame(int page_number) {
 			page_table[i]->pageNo = page_number;
 			page_table[i]->empty = 0;
 			page_table[i]->modified = 0;
-			page_table[i]->use = 0; 
+			page_table[i]->LRU_use= 0; 
 
 			return i;
 		}
@@ -136,7 +137,7 @@ int allocateFrame(int page_number) {
 page selectVictim(int page_number, enum repl mode) {
 	page victim;
 
-	int evic_index = 0; // who are we removing?
+	int evic_index = 0; // which page are we removing?
 
 	switch(mode){
 
@@ -147,31 +148,32 @@ page selectVictim(int page_number, enum repl mode) {
 		case _random:
 
 			evic_index = rand() % numFrames;
+      // ensuring the frame we pick isn't empty
+      while(page_table[evic_index]->empty){ 
+        evic_index = rand() % numFrames;
+      }
 			break;
   
 		case lru: {
 
-      // find the largest 'use' value while ensuring the frame we pick is not empty 
+      // find the largest 'LRU_use' value while ensuring the frame we pick is not empty 
 
-      int max = page_table[0]->use;
+      int max = page_table[0]->LRU_use;
 
       while(page_table[evic_index]->empty){
         evic_index += 1;
-        if(evic_index >= numFrames - 1){
-          break;
-        }
+
       }
-      max = page_table[evic_index]->use;
+      max = page_table[evic_index]->LRU_use;
 
       for(int i = evic_index; i < numFrames; i++){
 
-        if(page_table[i]->use > max && !page_table[i]->empty){
+        if(page_table[i]->LRU_use > max && !page_table[i]->empty){
           evic_index = i;
-          max = page_table[i]->use;
-          printf("evict this\n");
+          max = page_table[i]->LRU_use;
         }
       }
-
+      
 			break;
     }
 
@@ -184,7 +186,7 @@ page selectVictim(int page_number, enum repl mode) {
 	victim = *page_table[evic_index];
 	page_table[evic_index]->empty = 1;
   page_table[evic_index]->modified = 0;
-  page_table[evic_index]->use = 0;
+  page_table[evic_index]->LRU_use= 0;
   
 	return (victim);
 }
@@ -282,6 +284,7 @@ main(int argc, char *argv[]) {
 
       if (allocated < numFrames) /* allocate it to an empty frame */
       {
+
         frame_no = allocateFrame(page_number);
         allocated++;
       } else {
@@ -302,7 +305,6 @@ main(int argc, char *argv[]) {
           printf("Discard    %8d \n", Pvictim.pageNo);
         }
         
-        allocated--; // to signify we have one less page
       }
     }
     if (rw == 'R') {
