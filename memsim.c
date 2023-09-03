@@ -135,6 +135,7 @@ int allocateFrame(int page_number) {
 /* Selects a victim for eviction/discard according to the replacement algorithm,
  * returns chosen frame_no  */
 page selectVictim(int page_number, enum repl mode) {
+
 	page victim;
 
 	int evic_index = 0; // which page are we removing?
@@ -162,7 +163,6 @@ page selectVictim(int page_number, enum repl mode) {
 
       while(page_table[evic_index]->empty){
         evic_index += 1;
-
       }
       max = page_table[evic_index]->LRU_use;
 
@@ -191,7 +191,7 @@ page selectVictim(int page_number, enum repl mode) {
 	return (victim);
 }
 
-/* marks modified bit as 1, will write to disk */
+/* marks modified bit as 1, will write to disk when evicted */
 void modifyPage(int page_number){
 
 	for(int i = 0; i < numFrames; i++){
@@ -275,6 +275,8 @@ main(int argc, char *argv[]) {
   do_line = fscanf(trace, "%x %c", &address, &rw);
 
   while (do_line == 2) {
+
+
     page_number = address >> pageoffset;
     frame_no = checkInMemory(page_number); /* ask for physical address */
 
@@ -284,11 +286,11 @@ main(int argc, char *argv[]) {
 
       if (allocated < numFrames) /* allocate it to an empty frame */
       {
-
         frame_no = allocateFrame(page_number);
         allocated++;
       } else {
 
+        allocated--;
         Pvictim = selectVictim(page_number,
                                replace); /* returns page number of the victim */
         frame_no = checkInMemory(
