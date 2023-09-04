@@ -25,25 +25,57 @@ int createMMU(int);
 int checkInMemory(int);
 int allocateFrame(int);
 page selectVictim(int, enum repl);
-page Pvictim;
 
 const int pageoffset = 12; /* Page size is fixed to 4 KB */
 // 12 bits can represent 4KB (0-4095)
 
 int numFrames;
 
-page** page_table; // allocated by createMMU()
+page* page_table; // allocated by createMMU()
 
 /* Creates the page table structure to record memory allocation */
 int createMMU(int frames) {
+
+	#pragma region notes
+	/*
+
+		say 'frames' = 4, our page table could look like this
+		 ________
+		|_______|       
+		|_______|       	
+		|_______|       	
+		|_______|       
+
+		where in each frame we store
+
+		____________________
+    |                   |
+    |  Page Number      
+    |  Dirty Bit
+    |  LRU_use           		   
+    |___________________|
+	   
+	   when a new line comes in 
+
+	   000001000011 11111111111101000101
+
+	   ____________: interpret first part as page
+
+	               _____________________: second part as offset (which can be ignored for our simulation)
+
+    luckily the provided skeleton handles all this yucky binary stuff for us!
+	   
+	*/
+	#pragma endregion
 	
-	page_table = malloc(frames * sizeof(page*)); /* page directory */
+	/* we will be implimenting a linear page table */
+	
+	page_table = malloc(frames * sizeof(page)); /* page directory */
 	
 	for(int i = 0; i < frames; i++){
-		page_table[i] = malloc(sizeof(page)); // NULL will denote an empty space
-		page_table[i]->empty = 1; // all frames are initally empty
-        page_table[i]->modified = 0;
-        page_table[i]->LRU_use= 0;
+		page_table[i].empty = 1; // all frames are initally empty
+    page_table[i].modified = 0;
+    page_table[i].LRU_use= 0;
 	}
 
   	return 0;
@@ -53,10 +85,10 @@ void printMMU(){
   for(int i = 0; i < numFrames; i++){
 
     printf("_________________\n");
-    printf("| Page No : %d\n", page_table[i]->pageNo);
-    printf("| Modified: %d\n", page_table[i]->modified);
-    printf("| LRU_use: %d\n", page_table[i]->LRU_use);
-    printf("| Empty   : %d\n\n", page_table[i]->empty);
+    printf("| Page No : %d\n", page_table[i].pageNo);
+    printf("| Modified: %d\n", page_table[i].modified);
+    printf("| LRU_use: %d\n", page_table[i].LRU_use);
+    printf("| Empty   : %d\n\n", page_table[i].empty);
   }
 }
 
@@ -67,13 +99,13 @@ int checkInMemory(int page_number) {
 	// iterates over each frame in page table, checking if page_number
 	for(int i = 0; i < numFrames; i++){
 
-		if(page_table[i]->pageNo == page_number && page_table[i]->empty != 1){
-            result = i; // reset time since used
-            page_table[i]->LRU_use= 0;
+		if(page_table[i].pageNo == page_number && !page_table[i].empty){
+      result = i; // reset time since used
+      page_table[i].LRU_use = 0;
 		}
-        else{ 
-            page_table[i]->LRU_use++;
-        }   
+    else{ 
+      page_table[i].LRU_use += 1;
+    }   
 	}
   
 	return result;
@@ -81,24 +113,20 @@ int checkInMemory(int page_number) {
 
 /* allocate page to the next free frame and record where it put it */
 int allocateFrame(int page_number) {
-
-    //printf(" \n heeeeere \n");
 	
   for(int i = 0; i < numFrames; i++){
 		// frame i is empty, allocate there
 
-		if(page_table[i]->empty ){
+		if(page_table[i].empty){
 
-			page_table[i]->pageNo = page_number;
-			page_table[i]->empty = 0;
-			page_table[i]->modified = 0;
-			page_table[i]->LRU_use= 0; 
+			page_table[i].pageNo = page_number;
+			page_table[i].empty = 0;
+			page_table[i].modified = 0;
+			page_table[i].LRU_use= 0; 
 
 			return i;
 		}
 	}
-
-
 
 	return -1;
 }
@@ -121,31 +149,29 @@ page selectVictim(int page_number, enum repl mode) {
 
 			evic_index = rand() % numFrames;
       // ensuring the frame we pick isn't empty
-      while(page_table[evic_index]->empty){ 
+      while(page_table[evic_index].empty){ 
         evic_index = rand() % numFrames;
       }
 			break;
   
-	case lru: {
+		case lru: {
 
       // find the largest 'LRU_use' value while ensuring the frame we pick is not empty 
 
-      int max = page_table[0]->LRU_use;
-      
-      while(page_table[evic_index]->empty){
+      int max = page_table[0].LRU_use;
+
+      while(page_table[evic_index].empty){
         evic_index += 1;
-        
       }
-      
-      max = page_table[evic_index]->LRU_use;
+      max = page_table[evic_index].LRU_use;
 
       for(int i = evic_index; i < numFrames; i++){
 
-        if(page_table[i]->LRU_use > max && !page_table[i]->empty){
+        if(page_table[i].LRU_use > max && !page_table[i].empty){
           evic_index = i;
-          max = page_table[i]->LRU_use;
+          max = page_table[i].LRU_use;
         }
-      }    
+      }
       
 			break;
     }
@@ -157,13 +183,10 @@ page selectVictim(int page_number, enum repl mode) {
 	}
 
   /* mark as empty (evicted) in page table */
-	victim = *page_table[evic_index];
-    page_table[evic_index]->pageNo = page_number;
-	page_table[evic_index]->empty = 1;
-  page_table[evic_index]->modified = 0;
-  page_table[evic_index]->LRU_use= 0;
-
-   
+	victim = page_table[evic_index];
+	page_table[evic_index].empty = 1;
+  page_table[evic_index].modified = 0;
+  page_table[evic_index].LRU_use= 0;
   
 	return (victim);
 }
@@ -173,9 +196,8 @@ void modifyPage(int page_number){
 
 	for(int i = 0; i < numFrames; i++){
 
-		if(page_table[i]->pageNo == page_number && !page_table[i]->empty){
-			page_table[i]->modified = 1;
-            
+		if(page_table[i].pageNo == page_number && !page_table[i].empty){
+			page_table[i].modified = 1;
 			break;
 		}
 	}
@@ -195,7 +217,7 @@ main(int argc, char *argv[]) {
   unsigned address;
   char rw;
 
-  
+  page Pvictim;
   FILE *trace;
 
   if (argc < 5) {
@@ -212,7 +234,6 @@ main(int argc, char *argv[]) {
     }
 
     numFrames = atoi(argv[2]);
-    
     if (numFrames < 1) {
       printf("Frame number must be at least 1\n");
       exit(-1);
@@ -261,7 +282,6 @@ main(int argc, char *argv[]) {
 
     if (frame_no == -1) {
       disk_reads++; /* Page fault, need to load it into memory */
-      //printf(" \n %d \n", allocated);
       if (debugmode) printf("Page fault %8d \n", page_number);
 
       if (allocated < numFrames) /* allocate it to an empty frame */
@@ -273,11 +293,11 @@ main(int argc, char *argv[]) {
         Pvictim = selectVictim(page_number,
                                replace); /* returns page number of the victim */
 
-        //allocated--; // signify we have removed a page
+        allocated--; // signify we have removed a page
 
         frame_no = allocateFrame(
             page_number); /* allocate our new frame */
-        
+
         if (Pvictim.modified) /* need to know victim page and modified  */
         {
           disk_writes++;
